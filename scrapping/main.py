@@ -1,4 +1,5 @@
 import requests
+import os
 from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime, timedelta, timezone
@@ -6,6 +7,11 @@ from datetime import datetime, timedelta, timezone
 # Get current time in GMT+7
 gmt_plus_7 = timezone(timedelta(hours=7))
 TODAY = datetime.now(gmt_plus_7).strftime("%Y-%m-%d-%H%M%S")  # Get the current date and time
+
+output_dir = os.path.join(os.getcwd(), "data")
+csv_filename = os.path.join(output_dir, "gold_price.csv")
+alternate_csv_filename = os.path.join(output_dir, f"gold_price_{TODAY}.csv")
+
 
 df = pd.DataFrame(columns=['Date','Brand','Type','Buy','Buy Change','Sell','Sell Change'])   # Create a new DataFrame to store the data
 
@@ -57,9 +63,9 @@ for brand in ['doji','pnj','sjc','phu-quy','bao-tin-minh-chau','bao-tin-manh-hai
     else:
         print('Failed to retrieve the webpage.')
 try:
-    df.to_csv('../data/gold_price.csv', index=False,encoding='utf-8-sig',mode='a')  # Save the data to a CSV file
+    df.to_csv(csv_filename, index=False,encoding='utf-8-sig',mode='a')  # Save the data to a CSV file
     print('Data saved to CSV file.')
 except:
     print('Failed to save the data to the main CSV file. System will try to save the data to a new CSV file.')
-    df.to_csv(f"../data/gold_price_{TODAY}.csv", index=False,encoding='utf-8-sig', mode='w')  # Save the data to a CSV file
+    df.to_csv(alternate_csv_filename, index=False,encoding='utf-8-sig', mode='w')  # Save the data to a CSV file
  
