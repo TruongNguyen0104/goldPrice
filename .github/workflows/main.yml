@@ -34,4 +34,4 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Auto-update gold price data" || exit 0
-          git push https://x-access-token:${GH_TOKEN}@github.com/YOUR_USERNAME/YOUR_REPO.git
+          git push https://x-access-token:${GH_TOKEN}@github.com/TruongNguyen0104/goldPrice.git
