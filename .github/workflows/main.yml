@@ -1,0 +1,24 @@
+name: Gold Price Auto Scraper
+
+on:
+  schedule:
+    - cron: "0 */5 * * *"  # Runs every 6 hours (adjust as needed)
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: pip install -r ./scrapping/requirements.txt
+
+      - name: Run script
+        run: python ./scrapping/main.py
