@@ -1,2 +1,2 @@
 # goldPrice
-Solo project about Gold Price
+Scrapping part of the gold price from giavang.org
