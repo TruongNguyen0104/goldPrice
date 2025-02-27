@@ -17,6 +17,7 @@ df = pd.DataFrame(columns=['Date','Brand','Type','Buy','Buy Change','Sell','Sell
 
 # URL of the webpage to scrape
 for brand in ['doji','pnj','sjc','phu-quy','bao-tin-minh-chau','bao-tin-manh-hai','mi-hong','ngoc-tham']:
+    
     url = f"https://giavang.org/trong-nuoc/{brand}/"
 
     # Send a GET request to the webpage
@@ -63,7 +64,7 @@ for brand in ['doji','pnj','sjc','phu-quy','bao-tin-minh-chau','bao-tin-manh-hai
     else:
         print('Failed to retrieve the webpage.')
 try:
-    df.to_csv(csv_filename, index=False,encoding='utf-8-sig',mode='a')  # Save the data to a CSV file
+    df.to_csv(csv_filename, index=False,encoding='utf-8-sig',mode='a', header=not os.path.exists(csv_filename))  # Save the data to a CSV file
     print('Data saved to CSV file.')
 except:
     print('Failed to save the data to the main CSV file. System will try to save the data to a new CSV file.')
