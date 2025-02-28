@@ -92,7 +92,7 @@ for brand in ['doji','pnj','sjc','phu-quy','bao-tin-minh-chau','bao-tin-manh-hai
                     'Buy Change':gold_price[3],
                     'Sell':gold_price[5],
                     'Sell Change':gold_price[6]}, ignore_index=True)
-            send_telegram_message(df[-1])
+            send_telegram_message(df.tail(1))
             
             if len(gold_price) > 7:
                 df = df.append({'Date': timestamp, 
@@ -102,7 +102,7 @@ for brand in ['doji','pnj','sjc','phu-quy','bao-tin-minh-chau','bao-tin-manh-hai
                         'Buy Change':gold_price[10],
                         'Sell':gold_price[12],
                         'Sell Change':gold_price[13]}, ignore_index=True)
-                send_telegram_message(df[-1])  
+                send_telegram_message(df.tail(1))  
         else:
             print('Gold price not found.')
     else:
