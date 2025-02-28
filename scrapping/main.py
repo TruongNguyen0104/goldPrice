@@ -3,6 +3,7 @@ import os
 from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime, timedelta, timezone
+import re
 
 # Get current time in GMT+7
 gmt_plus_7 = timezone(timedelta(hours=7))
@@ -24,11 +25,18 @@ message_template = (
             "💰 *Buy Price:* {buy_price} {buy_change}\n"
             "💵 *Sell Price:* {sell_price} {sell_change}\n"
         )
+
+
+# Function to escape special characters for Telegram MarkdownV2
 def escape_markdown(text):
-    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-    for char in special_chars:
-        text = text.replace(char, f"\\{char}")  # Escape each special character
-    return text.replace("{", "\\{").replace("}", "\\}")  # ✅ Ensure `{` and `}` are properly escaped
+    if not isinstance(text, str):
+        text = str(text)  # Ensure text is a string
+
+    # List of special characters in Telegram MarkdownV2
+    special_chars = r"_*[]()~`>#+-=|{}.!'"
+
+    # Escape each special character using regex
+    return re.sub(r"([" + re.escape(special_chars) + r"])", r"\\\1", text)
 
 
 # Function to send Telegram message
