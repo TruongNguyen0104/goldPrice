@@ -4,14 +4,31 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 
+# Get current time in GMT+7
+gmt_plus_7 = timezone(timedelta(hours=7))
+TODAY = datetime.now(gmt_plus_7).strftime("%Y-%m-%d-%H%M%S")  # Get the current date and time
+
+output_dir = os.path.join(os.getcwd(), "data")
+csv_filename = os.path.join(output_dir, "gold_price.csv")
+alternate_csv_filename = os.path.join(output_dir, f"gold_price_{TODAY}.csv")
+
 # Load Telegram credentials from environment variables
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+message_template = (
+            "📢 *Gold Price Update* 🏆\n"
+            "🗓 *Date:* {date}\n"
+            "🏢 *Brand:* {brand}\n"
+            "💎 *Type:* {gold_type}\n"
+            "💰 *Buy Price:* {buy_price} {buy_change}\n"
+            "💵 *Sell Price:* {sell_price} {sell_change}\n"
+        )
+
 # Function to send Telegram message
 def send_telegram_message(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("❌ Telegram credentials are missing!")
+        print("Telegram credentials are missing!")
         return
 
     telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -24,16 +41,7 @@ def send_telegram_message(message):
     response = requests.post(telegram_url, json=payload)
     return response.json()
 
-message_template = (
-            "📢 *Gold Price Update* 🏆\n"
-            "🗓 *Date:* {date}\n"
-            "🏢 *Brand:* {brand}\n"
-            "💎 *Type:* {gold_type}\n"
-            "💰 *Buy Price:* {buy_price} {buy_change}\n"
-            "💵 *Sell Price:* {sell_price} {sell_change}\n"
-        )
 def message_to_telegram(df):
-
         message = message_template.format(
             date=df["Date"],
             brand=df["Brand"],
@@ -47,15 +55,6 @@ def message_to_telegram(df):
             print(f"Message sent to Telegram for {df['Brand']} -type: {df['Type']}")
         else:
             print(f"Failed to send message to Telegram for {df['Brand']} -type: {df['Type']}")
-
-# Get current time in GMT+7
-gmt_plus_7 = timezone(timedelta(hours=7))
-TODAY = datetime.now(gmt_plus_7).strftime("%Y-%m-%d-%H%M%S")  # Get the current date and time
-
-output_dir = os.path.join(os.getcwd(), "data")
-csv_filename = os.path.join(output_dir, "gold_price.csv")
-alternate_csv_filename = os.path.join(output_dir, f"gold_price_{TODAY}.csv")
-
 
 df = pd.DataFrame(columns=['Date','Brand','Type','Buy','Buy Change','Sell','Sell Change'])   # Create a new DataFrame to store the data
 
