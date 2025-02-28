@@ -35,7 +35,7 @@ def send_telegram_message(message):
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"
+        "parse_mode": "MarkdownV2"
     }
     
     response = requests.post(telegram_url, json=payload)
@@ -50,9 +50,13 @@ def send_telegram_message(message):
 
 
 def message_to_telegram(row):
+        
         def escape_markdown(text):
-            return str(text).replace("-", "\\-").replace(".", "\\.").replace("(", "\\(").replace(")", "\\)").replace("+", "\\+")
-
+            special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+            for char in special_chars:
+                text = text.replace(char, f"\\{char}")  # Escape each special character
+            return text
+        
         message = message_template.format(
             date=escape_markdown(row["Date"]),
             brand=escape_markdown(row["Brand"]),
