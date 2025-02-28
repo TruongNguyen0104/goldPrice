@@ -3,6 +3,7 @@ import os
 from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime, timedelta, timezone
+import time
 import re
 
 # Get current time in GMT+7
@@ -17,24 +18,12 @@ alternate_csv_filename = os.path.join(output_dir, f"gold_price_{TODAY}.csv")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-message_template = (
-            "📢 *Gold Price Update* 🏆\n"
-            "🗓 *Date:* {date}\n"
-            "🏢 *Brand:* {brand}\n"
-            "💎 *Type:* {gold_type}\n"
-            "💰 *Buy Price:* {buy_price} {buy_change}\n"
-            "💵 *Sell Price:* {sell_price} {sell_change}\n"
-        )
-
-
 # Function to escape special characters for Telegram MarkdownV2
 def escape_markdown(text):
     if not isinstance(text, str):
         text = str(text)  # Convert to string if not already
 
-    # Escape all Telegram MarkdownV2 special characters
     return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', text)
-
 
 # Function to send Telegram message
 def send_telegram_message(message):
@@ -59,49 +48,55 @@ def send_telegram_message(message):
     except:
         print("Error parsing Telegram response.")
 
+# Function to send one message for both new rows
+def message_to_telegram(rows):
+    if not rows:
+        return  # No data to send
 
-def message_to_telegram(row):
-        message = message_template.format(
-            date=escape_markdown(row["Date"]),
-            brand=escape_markdown(row["Brand"]),
-            gold_type=escape_markdown(row["Type"]),
-            buy_price=escape_markdown(row["Buy"]),
-            buy_change=escape_markdown(row["Buy Change"]),
-            sell_price=escape_markdown(row["Sell"]),
-            sell_change=escape_markdown(row["Sell Change"])
+    message = "📢 *Gold Price Update* 🏆\n"
+
+    for index, row in enumerate(rows):
+        if index == 0:  # First row → Include Date & Brand
+            message += (
+                f"\n🗓 *Date:* {escape_markdown(row['Date'])}\n"
+                f"🏢 *Brand:* {escape_markdown(row['Brand'])}\n"
+            )
+
+        message += (
+            f"💎 *Type:* {escape_markdown(row['Type'])}\n"
+            f"💰 *Buy Price:* {escape_markdown(row['Buy'])}\n"
+            f"   📈 Change: {escape_markdown(row['Buy Change'])}\n"  # Separated Buy Change
+            f"💵 *Sell Price:* {escape_markdown(row['Sell'])}\n"
+            f"   📉 Change: {escape_markdown(row['Sell Change'])}\n"  # Separated Sell Change
+            f"──────────────────────\n"
         )
 
-        send_telegram_message(message)
+    send_telegram_message(message)
+    time.sleep(5)
 
-
-df = pd.DataFrame(columns=['Date','Brand','Type','Buy','Buy Change','Sell','Sell Change'])   # Create a new DataFrame to store the data
+df = pd.DataFrame(columns=['Date','Brand','Type','Buy','Buy Change','Sell','Sell Change'])
 
 # URL of the webpage to scrape
-for brand in ['doji','pnj','sjc','phu-quy','bao-tin-minh-chau','bao-tin-manh-hai','mi-hong','ngoc-tham']:
+for brand in ['doji', 'pnj', 'sjc', 'phu-quy', 'bao-tin-minh-chau', 'bao-tin-manh-hai', 'mi-hong', 'ngoc-tham']:
     
     url = f"https://giavang.org/trong-nuoc/{brand}/"
-
-    # Send a GET request to the webpage
     response = requests.get(url)
 
-    # Check if the request was successful
     if response.status_code == 200:
-        # Parse the HTML content of the webpage
         soup = BeautifulSoup(response.content, 'html.parser')
 
-       # Find the element on the webpage
-        timestamp = soup.find('h1', class_='box-headline highlight')  # Get the timestamp
-        gold_price = soup.find('div', class_='gold-price-box')  #Get the gold price
-        
+        timestamp = soup.find('h1', class_='box-headline highlight')
+        gold_price = soup.find('div', class_='gold-price-box')
+
         timestamp = timestamp.text.split(' ')[-1] + ' ' + timestamp.text.split(' ')[-2]
-        # Check if the element exists
+
         if gold_price:
             gold_price = gold_price.getText().strip().split('\n')
-            gold_price = list(filter(None ,gold_price)) # Remove empty strings from the list
+            gold_price = list(filter(None, gold_price))  # Remove empty strings
 
-            """ the data to the DataFrame
-                bullion vs ring
-            """
+            new_rows = []
+
+            # First row
             new_row = {
                 'Date': timestamp,
                 'Brand': brand.upper(),
@@ -112,29 +107,34 @@ for brand in ['doji','pnj','sjc','phu-quy','bao-tin-minh-chau','bao-tin-manh-hai
                 'Sell Change': gold_price[6]
             }
             
-            df = df.append(new_row, ignore_index=True)
-            send_telegram_message(new_row)
-            
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)  # Use concat instead of append
+            new_rows.append(new_row)
+
+            # Second row (if available)
             if len(gold_price) > 7:
                 new_row2 = {
-                    'Date': timestamp,
-                    'Brand': brand.upper(),
+                    'Date': timestamp,  # This will be ignored in the message
+                    'Brand': brand.upper(),  # This will be ignored in the message
                     'Type': "Bullion" if "Miếng" in gold_price[7] else "Ring",
                     'Buy': gold_price[9],
                     'Buy Change': gold_price[10],
                     'Sell': gold_price[12],
                     'Sell Change': gold_price[13]
                 }
-                df = df.append(new_row2, ignore_index=True)
-                send_telegram_message(new_row2)  
+                df = pd.concat([df, pd.DataFrame([new_row2])], ignore_index=True)
+                new_rows.append(new_row2)
+
+            # Send one message for both rows
+            message_to_telegram(new_rows)
+
         else:
             print('Gold price not found.')
     else:
         print('Failed to retrieve the webpage.')
+
 try:
-    df.to_csv(csv_filename, index=False,encoding='utf-8-sig',mode='a', header=not os.path.exists(csv_filename))  # Save the data to a CSV file
+    df.to_csv(csv_filename, index=False, encoding='utf-8-sig', mode='a', header=not os.path.exists(csv_filename))
     print('Data saved to CSV file.')
 except:
-    print('Failed to save the data to the main CSV file. System will try to save the data to a new CSV file.')
-    df.to_csv(alternate_csv_filename, index=False,encoding='utf-8-sig', mode='w')  # Save the data to a CSV file
- 
+    print('Failed to save the data to the main CSV file. Saving to alternate file.')
+    df.to_csv(alternate_csv_filename, index=False, encoding='utf-8-sig', mode='w')
