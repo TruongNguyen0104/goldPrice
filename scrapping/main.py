@@ -30,13 +30,10 @@ message_template = (
 # Function to escape special characters for Telegram MarkdownV2
 def escape_markdown(text):
     if not isinstance(text, str):
-        text = str(text)  # Ensure text is a string
+        text = str(text)  # Convert to string if not already
 
-    # List of special characters in Telegram MarkdownV2
-    special_chars = r"_*[]()~`>#+-=|{}.!'"
-
-    # Escape each special character using regex
-    return re.sub(r"([" + re.escape(special_chars) + r"])", r"\\\1", text)
+    # Escape all Telegram MarkdownV2 special characters
+    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', text)
 
 
 # Function to send Telegram message
