@@ -24,6 +24,11 @@ message_template = (
             "💰 *Buy Price:* {buy_price} {buy_change}\n"
             "💵 *Sell Price:* {sell_price} {sell_change}\n"
         )
+def escape_markdown(text):
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in special_chars:
+        text = text.replace(char, f"\\{char}")  # Escape each special character
+    return text
 
 # Function to send Telegram message
 def send_telegram_message(message):
@@ -50,13 +55,6 @@ def send_telegram_message(message):
 
 
 def message_to_telegram(row):
-        
-        def escape_markdown(text):
-            special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-            for char in special_chars:
-                text = text.replace(char, f"\\{char}")  # Escape each special character
-            return text
-        
         message = message_template.format(
             date=escape_markdown(row["Date"]),
             brand=escape_markdown(row["Brand"]),
