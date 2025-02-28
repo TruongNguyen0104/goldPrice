@@ -11,6 +11,9 @@ on:
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -38,12 +41,3 @@ jobs:
           git add -A
           git commit -m "Auto-update gold price data" || exit 0
           git push https://x-access-token:${GH_TOKEN}@github.com/TruongNguyen0104/goldPrice.git
-      
-      - name: Get Current Timestamp
-        run: echo "TIMESTAMP=$(TZ='Asia/Bangkok' date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
-
-      - name: Send Telegram Message
-        run: |
-          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"🚀 GitHub Actions Notification:\nA New Gold Price updated!\n🕒 Timestamp: ${{ env.TIMESTAMP }}\", \"parse_mode\": \"Markdown\"}"

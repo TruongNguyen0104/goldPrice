@@ -4,6 +4,50 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 
+# Load Telegram credentials from environment variables
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# Function to send Telegram message
+def send_telegram_message(message):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("❌ Telegram credentials are missing!")
+        return
+
+    telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    
+    response = requests.post(telegram_url, json=payload)
+    return response.json()
+
+message_template = (
+            "📢 *Gold Price Update* 🏆\n"
+            "🗓 *Date:* {date}\n"
+            "🏢 *Brand:* {brand}\n"
+            "💎 *Type:* {gold_type}\n"
+            "💰 *Buy Price:* {buy_price} {buy_change}\n"
+            "💵 *Sell Price:* {sell_price} {sell_change}\n"
+        )
+def message_to_telegram(df):
+
+        message = message_template.format(
+            date=df["Date"],
+            brand=df["Brand"],
+            gold_type=df["Type"],
+            buy_price=df["Buy"],
+            buy_change=df["Buy Change"],
+            sell_price=df["Sell"],
+        )
+        response = send_telegram_message(message)
+        if response["ok"]:
+            print(f"Message sent to Telegram for {df['Brand']} -type: {df['Type']}")
+        else:
+            print(f"Failed to send message to Telegram for {df['Brand']} -type: {df['Type']}")
+
 # Get current time in GMT+7
 gmt_plus_7 = timezone(timedelta(hours=7))
 TODAY = datetime.now(gmt_plus_7).strftime("%Y-%m-%d-%H%M%S")  # Get the current date and time
@@ -49,6 +93,7 @@ for brand in ['doji','pnj','sjc','phu-quy','bao-tin-minh-chau','bao-tin-manh-hai
                     'Buy Change':gold_price[3],
                     'Sell':gold_price[5],
                     'Sell Change':gold_price[6]}, ignore_index=True)
+            send_telegram_message(df[-1])
             
             if len(gold_price) > 7:
                 df = df.append({'Date': timestamp, 
@@ -58,7 +103,7 @@ for brand in ['doji','pnj','sjc','phu-quy','bao-tin-minh-chau','bao-tin-manh-hai
                         'Buy Change':gold_price[10],
                         'Sell':gold_price[12],
                         'Sell Change':gold_price[13]}, ignore_index=True)
-            
+                send_telegram_message(df[-1])  
         else:
             print('Gold price not found.')
     else:
