@@ -37,7 +37,7 @@ def send_telegram_message(message):
         "text": message,
         "parse_mode": "MarkdownV2"
     }
-    
+
     response = requests.post(telegram_url, json=payload)
     try:
         res_json = response.json()
@@ -60,6 +60,7 @@ def message_to_telegram(rows):
             message += (
                 f"\n🗓 *Date:* {escape_markdown(row['Date'])}\n"
                 f"🏢 *Brand:* {escape_markdown(row['Brand'])}\n"
+                f"\n"
             )
 
         message += (
@@ -68,7 +69,7 @@ def message_to_telegram(rows):
             f"   📈 Change: {escape_markdown(row['Buy Change'])}\n"  # Separated Buy Change
             f"💵 *Sell Price:* {escape_markdown(row['Sell'])}\n"
             f"   📉 Change: {escape_markdown(row['Sell Change'])}\n"  # Separated Sell Change
-            f"──────────────────────\n"
+            f"\n"
         )
 
     send_telegram_message(message)
