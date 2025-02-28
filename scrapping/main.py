@@ -28,7 +28,8 @@ def escape_markdown(text):
     special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
     for char in special_chars:
         text = text.replace(char, f"\\{char}")  # Escape each special character
-    return text
+    return text.replace("{", "\\{").replace("}", "\\}")  # ✅ Ensure `{` and `}` are properly escaped
+
 
 # Function to send Telegram message
 def send_telegram_message(message):
