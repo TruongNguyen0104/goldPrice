@@ -39,22 +39,32 @@ def send_telegram_message(message):
     }
     
     response = requests.post(telegram_url, json=payload)
-    return response.json()
-
-def message_to_telegram(df):
-        message = message_template.format(
-            date=df["Date"],
-            brand=df["Brand"],
-            gold_type=df["Type"],
-            buy_price=df["Buy"],
-            buy_change=df["Buy Change"],
-            sell_price=df["Sell"],
-        )
-        response = send_telegram_message(message)
-        if response["ok"]:
-            print(f"Message sent to Telegram for {df['Brand']} -type: {df['Type']}")
+    try:
+        res_json = response.json()
+        if res_json.get("ok"):
+            print("Message sent successfully!")
         else:
-            print(f"Failed to send message to Telegram for {df['Brand']} -type: {df['Type']}")
+            print(f"Failed to send message: {res_json}")
+    except:
+        print("Error parsing Telegram response.")
+
+
+def message_to_telegram(row):
+        def escape_markdown(text):
+            return str(text).replace("-", "\\-").replace(".", "\\.").replace("(", "\\(").replace(")", "\\)").replace("+", "\\+")
+
+        message = message_template.format(
+            date=escape_markdown(row["Date"]),
+            brand=escape_markdown(row["Brand"]),
+            gold_type=escape_markdown(row["Type"]),
+            buy_price=escape_markdown(row["Buy"]),
+            buy_change=escape_markdown(row["Buy Change"]),
+            sell_price=escape_markdown(row["Sell"]),
+            sell_change=escape_markdown(row["Sell Change"])
+        )
+
+        send_telegram_message(message)
+
 
 df = pd.DataFrame(columns=['Date','Brand','Type','Buy','Buy Change','Sell','Sell Change'])   # Create a new DataFrame to store the data
 
@@ -84,25 +94,31 @@ for brand in ['doji','pnj','sjc','phu-quy','bao-tin-minh-chau','bao-tin-manh-hai
             """ the data to the DataFrame
                 bullion vs ring
             """
+            new_row = {
+                'Date': timestamp,
+                'Brand': brand.upper(),
+                'Type': "Bullion" if "Miếng" in gold_price[0] else "Ring",
+                'Buy': gold_price[2],
+                'Buy Change': gold_price[3],
+                'Sell': gold_price[5],
+                'Sell Change': gold_price[6]
+            }
             
-            df = df.append({'Date': timestamp, 
-                    'Brand': brand.upper(),
-                    'Type': "Bullion" if "Miếng" in gold_price[0] else "Ring",
-                    'Buy':gold_price[2],
-                    'Buy Change':gold_price[3],
-                    'Sell':gold_price[5],
-                    'Sell Change':gold_price[6]}, ignore_index=True)
-            send_telegram_message(df.tail(1))
+            df = df.append(new_row, ignore_index=True)
+            send_telegram_message(new_row)
             
             if len(gold_price) > 7:
-                df = df.append({'Date': timestamp, 
-                        'Brand': brand.upper(),
-                        'Type': "Bullion" if "Miếng" in gold_price[7] else "Ring",
-                        'Buy':gold_price[9],
-                        'Buy Change':gold_price[10],
-                        'Sell':gold_price[12],
-                        'Sell Change':gold_price[13]}, ignore_index=True)
-                send_telegram_message(df.tail(1))  
+                new_row2 = {
+                    'Date': timestamp,
+                    'Brand': brand.upper(),
+                    'Type': "Bullion" if "Miếng" in gold_price[7] else "Ring",
+                    'Buy': gold_price[9],
+                    'Buy Change': gold_price[10],
+                    'Sell': gold_price[12],
+                    'Sell Change': gold_price[13]
+                }
+                df = df.append(new_row2, ignore_index=True)
+                send_telegram_message(new_row2)  
         else:
             print('Gold price not found.')
     else:
