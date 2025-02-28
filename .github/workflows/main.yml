@@ -44,10 +44,8 @@ jobs:
 
       - name: Send Telegram Message
         run: |
+         - name: Send Telegram Message
+        run: |
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d '{
-              "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}",
-              "text": "🚀 GitHub Actions Notification:\nA New Gold Price updated!\n🕒 Timestamp: '${{ env.TIMESTAMP }}'",
-              "parse_mode": "Markdown"
-            }'
+            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"🚀 GitHub Actions Notification:\nA New Gold Price updated!\n🕒 Timestamp: ${{ env.TIMESTAMP }}\", \"parse_mode\": \"Markdown\"}"
