@@ -126,7 +126,8 @@ for brand in ['doji', 'pnj', 'sjc', 'phu-quy', 'bao-tin-minh-chau', 'bao-tin-man
                 new_rows.append(new_row2)
 
             # Send one message for both rows
-            message_to_telegram(new_rows)
+            if brand == 'doji':
+                message_to_telegram(new_rows)
 
         else:
             print('Gold price not found.')
