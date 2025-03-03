@@ -1,142 +1,205 @@
 import requests
 import os
-from bs4 import BeautifulSoup
-import pandas as pd
-from datetime import datetime, timedelta, timezone
-import time
 import re
+import time
+import pandas as pd
+from bs4 import BeautifulSoup
+from datetime import datetime, timedelta, timezone
 
-# Get current time in GMT+7
-gmt_plus_7 = timezone(timedelta(hours=7))
-TODAY = datetime.now(gmt_plus_7).strftime("%Y-%m-%d-%H%M%S")  # Get the current date and time
+class TelegramBot:
+    """Handles sending messages to Telegram."""
 
-output_dir = os.path.join(os.getcwd(), "data")
-csv_filename = os.path.join(output_dir, "gold_price.csv")
-alternate_csv_filename = os.path.join(output_dir, f"gold_price_{TODAY}.csv")
+    def __init__(self, bot_token, chat_id):
+        self.bot_token = bot_token
+        self.chat_id = chat_id
+        self.api_url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
 
-# Load Telegram credentials from environment variables
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+    def escape_markdown(self, text):
+        """Escapes special characters for Telegram MarkdownV2."""
+        if not isinstance(text, str):
+            text = str(text)
+        return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', text)
 
-# Function to escape special characters for Telegram MarkdownV2
-def escape_markdown(text):
-    if not isinstance(text, str):
-        text = str(text)  # Convert to string if not already
+    def format_message(self, rows):
+        """Formats the message with gold price updates."""
+        if not rows:
+            return None
 
-    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', text)
+        message = "📢 *Gold Price Update* 🏆\n"
 
-# Function to send Telegram message
-def send_telegram_message(message):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("Telegram credentials are missing!")
-        return
+        for index, row in enumerate(rows):
+            if index == 0:  # First row includes Date & Brand
+                message += (
+                    f"\n🗓 *Date:* {self.escape_markdown(row['Date'])}\n"
+                    f"🏢 *Brand:* {self.escape_markdown(row['Brand'])}\n\n"
+                )
 
-    telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "MarkdownV2"
-    }
-
-    response = requests.post(telegram_url, json=payload)
-    try:
-        res_json = response.json()
-        if res_json.get("ok"):
-            print("Message sent successfully!")
-        else:
-            print(f"Failed to send message: {res_json}")
-    except:
-        print("Error parsing Telegram response.")
-
-# Function to send one message for both new rows
-def message_to_telegram(rows):
-    if not rows:
-        return  # No data to send
-
-    message = "📢 *Gold Price Update* 🏆\n"
-
-    for index, row in enumerate(rows):
-        if index == 0:  # First row → Include Date & Brand
             message += (
-                f"\n🗓 *Date:* {escape_markdown(row['Date'])}\n"
-                f"🏢 *Brand:* {escape_markdown(row['Brand'])}\n"
-                f"\n"
+                f"💎 *Type:* {self.escape_markdown(row['Type'])}\n"
+                f"💰 *Buy Price:* {self.escape_markdown(row['Buy'])}\n"
+                f"   📈 Change: {self.escape_markdown(row['Buy Change'])}\n"
+                f"💵 *Sell Price:* {self.escape_markdown(row['Sell'])}\n"
+                f"   📉 Change: {self.escape_markdown(row['Sell Change'])}\n\n"
             )
 
-        message += (
-            f"💎 *Type:* {escape_markdown(row['Type'])}\n"
-            f"💰 *Buy Price:* {escape_markdown(row['Buy'])}\n"
-            f"   📈 Change: {escape_markdown(row['Buy Change'])}\n"  # Separated Buy Change
-            f"💵 *Sell Price:* {escape_markdown(row['Sell'])}\n"
-            f"   📉 Change: {escape_markdown(row['Sell Change'])}\n"  # Separated Sell Change
-            f"\n"
-        )
+        return message
 
-    send_telegram_message(message)
-    time.sleep(5)
+    def send_message(self, rows):
+        """Sends a formatted message to Telegram."""
+        if not self.bot_token or not self.chat_id:
+            print("Telegram credentials are missing!")
+            return
 
-df = pd.DataFrame(columns=['Date','Brand','Type','Buy','Buy Change','Sell','Sell Change'])
+        message = self.format_message(rows)
+        if not message:
+            return
 
-# URL of the webpage to scrape
-for brand in ['doji', 'pnj', 'sjc', 'phu-quy', 'bao-tin-minh-chau', 'bao-tin-manh-hai', 'mi-hong', 'ngoc-tham']:
-    
-    url = f"https://giavang.org/trong-nuoc/{brand}/"
-    response = requests.get(url)
+        payload = {
+            "chat_id": self.chat_id,
+            "text": message,
+            "parse_mode": "MarkdownV2"
+        }
 
-    if response.status_code == 200:
+        try:
+            response = requests.post(self.api_url, json=payload)
+            res_json = response.json()
+            if res_json.get("ok"):
+                print("Message sent successfully!")
+            else:
+                print(f"Failed to send message: {res_json}")
+        except Exception as e:
+            print(f"Error sending Telegram message: {e}")
+
+        time.sleep(5)  # Avoid Telegram rate limits
+
+
+class GoldPriceScraper:
+    """Scrapes gold prices from the specified website."""
+
+    BASE_URL = "https://giavang.org/trong-nuoc/"
+
+    def __init__(self):
+        self.df = pd.DataFrame(columns=['Date', 'Brand', 'Type', 'Buy', 'Buy Change', 'Sell', 'Sell Change'])
+
+    def fetch_gold_price(self, brand):
+        """Scrapes gold prices for the given brand."""
+        url = f"{self.BASE_URL}{brand}/"
+        response = requests.get(url)
+
+        if response.status_code != 200:
+            print(f"Failed to retrieve the webpage for {brand}.")
+            return []
+
         soup = BeautifulSoup(response.content, 'html.parser')
+        timestamp_element = soup.find('h1', class_='box-headline highlight')
+        gold_price_element = soup.find('div', class_='gold-price-box')
 
-        timestamp = soup.find('h1', class_='box-headline highlight')
-        gold_price = soup.find('div', class_='gold-price-box')
+        if not timestamp_element or not gold_price_element:
+            print(f"Gold price data not found for {brand}.")
+            return []
 
-        timestamp = timestamp.text.split(' ')[-1] + ' ' + timestamp.text.split(' ')[-2]
+        timestamp = self.extract_timestamp(timestamp_element.text)
+        gold_prices = self.extract_gold_prices(gold_price_element)
 
-        if gold_price:
-            gold_price = gold_price.getText().strip().split('\n')
-            gold_price = list(filter(None, gold_price))  # Remove empty strings
+        return self.process_gold_prices(brand, timestamp, gold_prices)
 
-            new_rows = []
+    @staticmethod
+    def extract_timestamp(text):
+        """Extracts the timestamp from the HTML element."""
+        parts = text.split(' ')
+        return f"{parts[-1]} {parts[-2]}"
 
-            # First row
-            new_row = {
+    @staticmethod
+    def extract_gold_prices(element):
+        """Extracts and cleans gold price data from the HTML element."""
+        gold_prices = element.getText().strip().split('\n')
+        return list(filter(None, gold_prices))  # Remove empty strings
+
+    def process_gold_prices(self, brand, timestamp, gold_prices):
+        """Processes extracted gold prices and structures them into dictionary format."""
+        new_rows = []
+
+        if len(gold_prices) < 7:
+            return []
+
+        new_rows.append({
+            'Date': timestamp,
+            'Brand': brand.upper(),
+            'Type': "Bullion" if "Miếng" in gold_prices[0] else "Ring",
+            'Buy': gold_prices[2],
+            'Buy Change': gold_prices[3],
+            'Sell': gold_prices[5],
+            'Sell Change': gold_prices[6]
+        })
+
+        if len(gold_prices) > 7:
+            new_rows.append({
                 'Date': timestamp,
                 'Brand': brand.upper(),
-                'Type': "Bullion" if "Miếng" in gold_price[0] else "Ring",
-                'Buy': gold_price[2],
-                'Buy Change': gold_price[3],
-                'Sell': gold_price[5],
-                'Sell Change': gold_price[6]
-            }
-            
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)  # Use concat instead of append
-            new_rows.append(new_row)
+                'Type': "Bullion" if "Miếng" in gold_prices[7] else "Ring",
+                'Buy': gold_prices[9],
+                'Buy Change': gold_prices[10],
+                'Sell': gold_prices[12],
+                'Sell Change': gold_prices[13]
+            })
 
-            # Second row (if available)
-            if len(gold_price) > 7:
-                new_row2 = {
-                    'Date': timestamp,  # This will be ignored in the message
-                    'Brand': brand.upper(),  # This will be ignored in the message
-                    'Type': "Bullion" if "Miếng" in gold_price[7] else "Ring",
-                    'Buy': gold_price[9],
-                    'Buy Change': gold_price[10],
-                    'Sell': gold_price[12],
-                    'Sell Change': gold_price[13]
-                }
-                df = pd.concat([df, pd.DataFrame([new_row2])], ignore_index=True)
-                new_rows.append(new_row2)
+        return new_rows
 
-            # Send one message for both rows
-            if brand == 'doji':
-                message_to_telegram(new_rows)
+    def scrape_all_brands(self, brands):
+        """Scrapes gold prices for multiple brands."""
+        all_new_rows = []
 
-        else:
-            print('Gold price not found.')
-    else:
-        print('Failed to retrieve the webpage.')
+        for brand in brands:
+            new_rows = self.fetch_gold_price(brand)
+            if new_rows:
+                self.df = pd.concat([self.df, pd.DataFrame(new_rows)], ignore_index=True)
+                all_new_rows.extend(new_rows)
 
-try:
-    df.to_csv(csv_filename, index=False, encoding='utf-8-sig', mode='a', header=not os.path.exists(csv_filename))
-    print('Data saved to CSV file.')
-except:
-    print('Failed to save the data to the main CSV file. Saving to alternate file.')
-    df.to_csv(alternate_csv_filename, index=False, encoding='utf-8-sig', mode='w')
+        return all_new_rows
+
+
+class CSVHandler:
+    """Handles saving data to CSV files."""
+
+    def __init__(self, directory="data"):
+        self.output_dir = os.path.join(os.getcwd(), directory)
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        gmt_plus_7 = timezone(timedelta(hours=7))
+        today = datetime.now(gmt_plus_7).strftime("%Y-%m-%d-%H%M%S")
+
+        self.csv_filename = os.path.join(self.output_dir, "gold_price.csv")
+        self.alternate_csv_filename = os.path.join(self.output_dir, f"gold_price_{today}.csv")
+
+    def save_to_csv(self, df):
+        """Saves the DataFrame to a CSV file."""
+        try:
+            df.to_csv(self.csv_filename, index=False, encoding='utf-8-sig', mode='a', header=not os.path.exists(self.csv_filename))
+            print("Data saved to CSV file.")
+        except:
+            print("Failed to save data to the main CSV file. Saving to alternate file.")
+            df.to_csv(self.alternate_csv_filename, index=False, encoding='utf-8-sig', mode='w')
+
+
+def main():
+    """Main function to run the script."""
+    # Load Telegram credentials from environment variables
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+    brands = ['doji', 'pnj', 'sjc', 'phu-quy', 'bao-tin-minh-chau', 'bao-tin-manh-hai', 'mi-hong', 'ngoc-tham']
+
+    scraper = GoldPriceScraper()
+    telegram_bot = TelegramBot(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+    csv_handler = CSVHandler()
+
+    all_new_rows = scraper.scrape_all_brands(brands)
+
+    if any(brand == 'doji' for brand in brands):
+        telegram_bot.send_message(all_new_rows)
+
+    csv_handler.save_to_csv(scraper.df)
+
+
+if __name__ == "__main__":
+    main()
