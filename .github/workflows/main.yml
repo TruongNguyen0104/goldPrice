@@ -27,7 +27,7 @@ jobs:
         run: pip install -r ./scrapping/requirements.txt
 
       - name: Run script
-        run: python ./scrapping/main.py
+        run: python ./scrapping/scrap.py
 
       - name: Check for changes
         run: git status
