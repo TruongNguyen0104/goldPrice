@@ -2,21 +2,24 @@ import requests
 import os
 from bs4 import BeautifulSoup
 import pandas as pd
-from datetime import datetime, timedelta, timezone
-import time
+from  util.utils import NOW, datetime
 import re
 
-# Get current time in GMT+7
-gmt_plus_7 = timezone(timedelta(hours=7))
-TODAY = datetime.now(gmt_plus_7).strftime("%Y-%m-%d-%H%M%S")  # Get the current date and time
 
-output_dir = os.path.join(os.getcwd(), "data")
-csv_filename = os.path.join(output_dir, "gold_price.csv")
-alternate_csv_filename = os.path.join(output_dir, f"gold_price_{TODAY}.csv")
+## Constants
+# Output directory and file paths
+OUTPUT_DIR = os.path.join(os.getcwd(), "data")
+CSV_FILENAME = os.path.join(OUTPUT_DIR, "gold_price.csv")
+# NOW is in the format "04/03/2025 12:30:45"
+ALTERNATIVE_FILENAME = os.path.join(
+    OUTPUT_DIR, 
+    f"gold_price_{datetime.strptime(NOW, '%d/%m/%Y %H:%M:%S').strftime('%Y-%m-%d_%H%M%S')}.csv"
+)
 
-# Load Telegram credentials from environment variables
+# Load Telegram credentials from environment variables``
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
 
 # Function to escape special characters for Telegram MarkdownV2
 def escape_markdown(text):
@@ -73,23 +76,21 @@ def message_to_telegram(rows):
         )
 
     send_telegram_message(message)
-    time.sleep(5)
 
-df = pd.DataFrame(columns=['Date','Brand','Type','Buy','Buy Change','Sell','Sell Change'])
+def scrapping_data(brand: str) -> pd.DataFrame:
+    """
+    Scrape gold price data from the given brand's webpage and return new rows.
 
-# URL of the webpage to scrape
-for brand in ['doji', 'pnj', 'sjc', 'phu-quy', 'bao-tin-minh-chau', 'bao-tin-manh-hai', 'mi-hong', 'ngoc-tham']:
-    
-    url = f"https://giavang.org/trong-nuoc/{brand}/"
-    response = requests.get(url)
+    """
+
+    URL = f"https://giavang.org/trong-nuoc/{brand}/"
+    response = requests.get(URL)
 
     if response.status_code == 200:
         soup = BeautifulSoup(response.content, 'html.parser')
-
-        timestamp = soup.find('h1', class_='box-headline highlight')
         gold_price = soup.find('div', class_='gold-price-box')
 
-        timestamp = timestamp.text.split(' ')[-1] + ' ' + timestamp.text.split(' ')[-2]
+        timestamp = NOW
 
         if gold_price:
             gold_price = gold_price.getText().strip().split('\n')
@@ -108,7 +109,6 @@ for brand in ['doji', 'pnj', 'sjc', 'phu-quy', 'bao-tin-minh-chau', 'bao-tin-man
                 'Sell Change': gold_price[6]
             }
             
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)  # Use concat instead of append
             new_rows.append(new_row)
 
             # Second row (if available)
@@ -122,21 +122,49 @@ for brand in ['doji', 'pnj', 'sjc', 'phu-quy', 'bao-tin-minh-chau', 'bao-tin-man
                     'Sell': gold_price[12],
                     'Sell Change': gold_price[13]
                 }
-                df = pd.concat([df, pd.DataFrame([new_row2])], ignore_index=True)
                 new_rows.append(new_row2)
+        
+        return new_rows
 
-            # Send one message for both rows
-            if brand == 'doji':
-                message_to_telegram(new_rows)
+def extract_data(df: pd.DataFrame) -> None:
+    """
+    Extract data from the given DataFrame and save it to a CSV file.
 
-        else:
-            print('Gold price not found.')
-    else:
-        print('Failed to retrieve the webpage.')
+    """
+    try:
+        df.to_csv(CSV_FILENAME, index=False, encoding='utf-8-sig', mode='a',
+                   header=not os.path.exists(CSV_FILENAME))
+        print('Data saved to CSV file.')
 
-try:
-    df.to_csv(csv_filename, index=False, encoding='utf-8-sig', mode='a', header=not os.path.exists(csv_filename))
-    print('Data saved to CSV file.')
-except:
-    print('Failed to save the data to the main CSV file. Saving to alternate file.')
-    df.to_csv(alternate_csv_filename, index=False, encoding='utf-8-sig', mode='w')
+    except:
+        print('Failed to save the data to the main CSV file. Saving to alternate file.')
+        df.to_csv(ALTERNATIVE_FILENAME, index=False, encoding='utf-8-sig', mode='w')
+
+
+    print('Save data completed.')
+
+# Main function
+def main() -> None:
+    print('Starting scraping...')
+    # Your scraping code here
+    df = pd.DataFrame(columns=['Date','Brand','Type','Buy','Buy Change','Sell','Sell Change'])
+
+        # URL of the webpage to scrape
+    for brand in ['doji', 'pnj', 'sjc', 'phu-quy', 'bao-tin-minh-chau', 'bao-tin-manh-hai', 'mi-hong', 'ngoc-tham']:
+        
+        new_rows = scrapping_data(brand)
+        df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True) 
+
+        # Send message for DOJI brand
+        if brand == 'doji':
+            message_to_telegram(new_rows)
+
+        
+    #Extract data to CSV
+    extract_data(df)
+        
+    print('Scraping completed.')
+
+
+if __name__ == "__main__":
+    main()
