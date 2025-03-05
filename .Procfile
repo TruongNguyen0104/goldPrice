@@ -1,0 +1,1 @@
+worker: python -m price_request.bot_request
