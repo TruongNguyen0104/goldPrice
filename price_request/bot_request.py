@@ -1,9 +1,10 @@
 import asyncio
-from flask import Flask
 import threading
 import os
+import nest_asyncio
 import aiohttp
 from bs4 import BeautifulSoup
+from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from util.utils import NOW
@@ -16,7 +17,8 @@ def health_check():
     return "Bot is running!", 200
 
 def start_flask_app():
-    port = int(os.getenv("PORT", 10000))  # Use Render-assigned port
+    """Start the Flask app on the Render-assigned PORT."""
+    port = int(os.getenv("PORT", 5000))  # Use Render PORT, default to 5000
     app.run(host="0.0.0.0", port=port)
 
 # Start Flask in a separate thread
@@ -27,10 +29,12 @@ flask_thread.start()
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 def escape_md(text):
+    """Escape special characters for MarkdownV2."""
     escape_chars = "_*[]()~`>#+-=|{}.!"
     return "".join(f"\\{char}" if char in escape_chars else char for char in text)
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Fetch and send the latest gold price from the website."""
     try:
         URL = "https://webgia.com/gia-vang/doji/"
         async with aiohttp.ClientSession() as session:
@@ -72,6 +76,7 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Error: {str(e)}")
 
 async def main():
+    """Start the Telegram bot."""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
     
@@ -80,13 +85,17 @@ async def main():
 
 if __name__ == "__main__":
     try:
+        # Patch asyncio to prevent "RuntimeError: This event loop is already running"
+        nest_asyncio.apply()
+
         # Start Flask in a separate thread
         flask_thread = threading.Thread(target=start_flask_app)
         flask_thread.daemon = True
         flask_thread.start()
 
-        # Use existing event loop instead of asyncio.run()
+        # Get the existing event loop and run the bot
         loop = asyncio.get_event_loop()
         loop.run_until_complete(main())
+
     except KeyboardInterrupt:
         print("Bot stopped by user.")
