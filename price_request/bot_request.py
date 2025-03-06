@@ -19,12 +19,7 @@ def health_check():
 def start_flask_app():
     """Start the Flask app on the Render-assigned PORT."""
     port = int(os.getenv("PORT", 5000))  # Use Render PORT, default to 5000
-    app.run(host="0.0.0.0", port=port)
-
-# Start Flask in a separate thread
-flask_thread = threading.Thread(target=start_flask_app)
-flask_thread.daemon = True
-flask_thread.start()
+    app.run(host="0.0.0.0", port=port, threaded=False)  # Disable threading to reduce memory usage
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
@@ -81,7 +76,7 @@ async def main():
     application.add_handler(CommandHandler("price", price))
     
     print("Bot is running...")
-    await application.run_polling()
+    await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     try:
@@ -93,8 +88,9 @@ if __name__ == "__main__":
         flask_thread.daemon = True
         flask_thread.start()
 
-        # Get the existing event loop and run the bot
-        loop = asyncio.get_event_loop()
+        # Create a new event loop to avoid conflicts with Render's existing loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         loop.run_until_complete(main())
 
     except KeyboardInterrupt:
