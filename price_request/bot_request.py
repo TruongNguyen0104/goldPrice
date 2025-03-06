@@ -1,4 +1,6 @@
 import asyncio
+from flask import Flask
+import threading
 import os
 import aiohttp
 from bs4 import BeautifulSoup
@@ -6,10 +8,27 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from util.utils import NOW
 
+# Initialize Flask app
+app = Flask(__name__)
+
+@app.route("/")
+def health_check():
+    return "Bot is running!", 200
+
+def start_flask_app():
+    app.run(host="0.0.0.0", port=10000)
+
+# Start Flask in a separate thread
+flask_thread = threading.Thread(target=start_flask_app)
+flask_thread.daemon = True
+flask_thread.start()
+
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 def escape_md(text):
-    return text.replace(".", "\\.").replace("-", "\\-").replace("(", "\\(").replace(")", "\\)")
+    # Escape special characters for MarkdownV2
+    escape_chars = "_*[]()~`>#+-=|{}.!"
+    return "".join(f"\\{char}" if char in escape_chars else char for char in text)
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -52,15 +71,21 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}")
 
-def main():
+async def main():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
     
     print("Bot is running...")
-    application.run_polling()
+    await application.run_polling()
 
 if __name__ == "__main__":
     try:
-        main()
+        # Run the Flask app in a separate thread
+        flask_thread = threading.Thread(target=start_flask_app)
+        flask_thread.daemon = True
+        flask_thread.start()
+
+        # Run the Telegram bot in the main thread
+        asyncio.run(main())
     except KeyboardInterrupt:
         print("Bot stopped by user.")
