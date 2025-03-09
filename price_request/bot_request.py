@@ -80,6 +80,10 @@ async def start_bot():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
     print("Telegram bot is running...")
+
+    # Delete any pre-existing webhook to avoid conflict errors
+    await application.bot.delete_webhook(drop_pending_updates=True)
+
     await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 async def keep_alive(health_url: str, interval: int = 600):
