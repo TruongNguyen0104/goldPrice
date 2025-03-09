@@ -7,7 +7,10 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from datetime import datetime
 import threading
 import asyncio
-import logging
+import nest_asyncio
+
+# Allow nested event loops (required in some environments)
+nest_asyncio.apply()
 
 # Ensure BOT_TOKEN is provided
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -22,10 +25,6 @@ except ImportError:
 
 # Initialize Flask app
 app = Flask(__name__)
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 @app.route("/")
 def health_check():
@@ -74,42 +73,56 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(message, parse_mode="MarkdownV2")
 
     except Exception as e:
-        logger.error(f"Error in price command: {e}")
         await update.message.reply_text(f"Error: {str(e)}")
 
 async def start_bot():
     """Start the Telegram bot"""
-    try:
-        application = Application.builder().token(BOT_TOKEN).build()
-        application.add_handler(CommandHandler("price", price))
-        logger.info("Telegram bot is running...")
-        await application.run_polling(allowed_updates=Update.ALL_TYPES)
-    except Exception as e:
-        logger.error(f"Telegram bot failed: {e}")
-        # Shutdown the application if the bot fails
-        os._exit(1)
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("price", price))
+    print("Telegram bot is running...")
+    await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-def run_flask():
-    """Run Flask in a separate thread."""
-    flask_port = int(os.getenv("PORT", 5000))
-    logger.info(f"Starting Flask server on port {flask_port}...")
-    app.run(
-        host='0.0.0.0',
-        port=flask_port,
-        use_reloader=False,
-        threaded=True
-    )
+async def keep_alive(health_url: str, interval: int = 600):
+    """
+    Periodically pings the health-check endpoint to keep the app awake.
+    :param health_url: URL of the health-check endpoint.
+    :param interval: Interval between pings in seconds (default 600 seconds = 10 minutes).
+    """
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(health_url) as response:
+                    print(f"Keep-alive ping status: {response.status}")
+        except Exception as e:
+            print(f"Keep-alive error: {e}")
+        await asyncio.sleep(interval)
 
 def run_app():
     """Run Flask and Telegram bot concurrently."""
-    # Start Flask in a separate thread
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    # Determine the port (Render sets PORT, default to 5000)
+    flask_port = int(os.getenv("PORT", 5000))
+    
+    # Start Flask server in its own thread for health checks
+    flask_thread = threading.Thread(
+        target=app.run,
+        kwargs={
+            'host': '0.0.0.0',
+            'port': flask_port,
+            'use_reloader': False,
+            'threaded': True
+        },
+        daemon=True
+    )
     flask_thread.start()
 
-    # Create a new event loop for the Telegram bot
-    bot_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(bot_loop)
-    bot_loop.run_until_complete(start_bot())
+    # Construct the local health-check URL
+    health_url = f"http://127.0.0.1:{flask_port}/"
+
+    # Get the current event loop, schedule both the Telegram bot and keep-alive tasks
+    loop = asyncio.get_event_loop()
+    loop.create_task(start_bot())
+    loop.create_task(keep_alive(health_url))
+    loop.run_forever()
 
 if __name__ == "__main__":
     run_app()
