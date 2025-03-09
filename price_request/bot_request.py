@@ -76,18 +76,12 @@ async def start_bot():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
     print("Telegram bot is running...")
-    # Disable signal handling since this is running in a non-main thread.
-    await application.run_polling(allowed_updates=Update.ALL_TYPES, handle_signals=False)
-
-def run_telegram_bot():
-    """Run Telegram bot in its own event loop."""
-    new_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(new_loop)
-    new_loop.run_until_complete(start_bot())
+    # Run polling normally (signals will be handled since this is in the main thread)
+    await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 def run_app():
-    """Run Flask and Telegram bot concurrently."""
-    # Start Flask in a separate thread
+    """Run Flask in a separate thread and Telegram bot in the main thread."""
+    # Start Flask server in its own thread for health checks
     flask_port = int(os.getenv("PORT", 5000))
     flask_thread = threading.Thread(
         target=app.run,
@@ -101,13 +95,8 @@ def run_app():
     )
     flask_thread.start()
 
-    # Start the Telegram bot in its own thread with a separate event loop
-    bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
-    bot_thread.start()
-
-    # Keep the main thread alive
-    flask_thread.join()
-    bot_thread.join()
+    # Run the Telegram bot in the main thread using asyncio.run
+    asyncio.run(start_bot())
 
 if __name__ == "__main__":
     run_app()
