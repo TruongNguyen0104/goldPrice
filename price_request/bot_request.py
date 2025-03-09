@@ -16,41 +16,37 @@ def health_check():
     return "Bot is running!", 200
 
 def start_flask_app():
-    """Start the Flask app on the Render-assigned PORT."""
+    """Start Flask in production-ready configuration"""
     port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, use_reloader=False)  # Disable Flask's reloader
+    app.run(host="0.0.0.0", port=port, use_reloader=False, threaded=False)
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 def escape_md(text):
-    """Escape special characters for MarkdownV2."""
+    """Escape special characters for MarkdownV2"""
     escape_chars = "_*[]()~`>#+-=|{}.!"
     return "".join(f"\\{char}" if char in escape_chars else char for char in text)
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Fetch and send the latest gold price from the website."""
+    """Fetch and send gold price"""
     try:
         URL = "https://webgia.com/gia-vang/doji/"
         async with aiohttp.ClientSession() as session:
             async with session.get(URL) as response:
                 if response.status != 200:
-                    await update.message.reply_text("Price not found. Website returned an error.")
+                    await update.message.reply_text("Price not found. Website error.")
                     return
                 page_content = await response.text()
 
         soup = BeautifulSoup(page_content, "html.parser")
-        row = soup.find("td", string="Nhẫn tròn 999 Hưng Thịnh Vượng")
+        row = soup.find("td", string="Nhẫn tròn 999 Hưng Thịnh Vượng") or None
 
         if not row:
-            await update.message.reply_text("Could not find the gold price information.")
+            await update.message.reply_text("Gold price information not found.")
             return
 
         row = row.find_parent("tr")
         tds = row.find_all("td")
-
-        if len(tds) < 7:
-            await update.message.reply_text("Error parsing price data.")
-            return
 
         hcm_price = {
             "Mua vào": escape_md(tds[-2].get_text(strip=True)),
@@ -69,21 +65,19 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}")
 
-async def main():
-    """Start the Telegram bot"""
+async def telegram_bot():
+    """Start Telegram bot polling"""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
-
-    print("Bot is running...")
     await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-if __name__ == "__main__":
-    # Start Flask in a separate thread
-    flask_thread = threading.Thread(target=start_flask_app, daemon=True)
-    flask_thread.start()
+def run_bot():
+    """Wrapper for async bot execution"""
+    asyncio.run(telegram_bot())
 
-    # Start the Telegram bot in the main thread
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("Bot stopped by user")
+if __name__ == "__main__":
+    # Start Telegram bot in a daemon thread
+    threading.Thread(target=run_bot, daemon=True).start()
+    
+    # Start Flask in main thread (blocking call)
+    start_flask_app()
