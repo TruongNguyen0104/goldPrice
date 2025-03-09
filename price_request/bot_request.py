@@ -76,7 +76,7 @@ async def main():
 
     print("Bot is running...")
     
-    # Run polling in a non-blocking way
+    # Run polling without closing the event loop
     await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
@@ -86,9 +86,18 @@ if __name__ == "__main__":
         flask_thread.start()
 
         # Use existing event loop instead of asyncio.run()
-        loop = asyncio.get_event_loop()
-        loop.create_task(main())  # Schedules `main()` without blocking
-        loop.run_forever()  # Keeps the loop running
+        loop = asyncio.get_running_loop()
+
+        # Schedule `main()` as a non-blocking task
+        loop.create_task(main())
+
+        # Keep the event loop running
+        loop.run_forever()
 
     except KeyboardInterrupt:
         print("Bot stopped by user.")
+    except RuntimeError:
+        # If `get_running_loop()` fails, fallback to creating a new event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(main())
