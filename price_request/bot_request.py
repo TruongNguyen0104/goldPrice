@@ -7,6 +7,10 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from datetime import datetime
 import threading
 import asyncio
+import nest_asyncio
+
+# Allow nested event loops (required in some environments)
+nest_asyncio.apply()
 
 # Ensure BOT_TOKEN is provided
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -76,12 +80,11 @@ async def start_bot():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
     print("Telegram bot is running...")
-    # Run polling normally (signals will be handled since this is in the main thread)
     await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 def run_app():
-    """Run Flask in a separate thread and Telegram bot in the main thread."""
-    # Start Flask server in its own thread for health checks
+    """Run Flask and Telegram bot concurrently."""
+    # Start Flask in a separate thread
     flask_port = int(os.getenv("PORT", 5000))
     flask_thread = threading.Thread(
         target=app.run,
@@ -95,8 +98,10 @@ def run_app():
     )
     flask_thread.start()
 
-    # Run the Telegram bot in the main thread using asyncio.run
-    asyncio.run(start_bot())
+    # Get the current event loop, schedule the Telegram bot, and run forever.
+    loop = asyncio.get_event_loop()
+    loop.create_task(start_bot())
+    loop.run_forever()
 
 if __name__ == "__main__":
     run_app()
