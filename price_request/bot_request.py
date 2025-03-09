@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.error import Conflict
 from datetime import datetime
 import threading
 import asyncio
@@ -76,15 +77,24 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Error: {str(e)}")
 
 async def start_bot():
-    """Start the Telegram bot"""
+    """Start the Telegram bot with retry on conflict errors."""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
     print("Telegram bot is running...")
 
-    # Delete any pre-existing webhook to avoid conflict errors
+    # Clear any existing webhook to prevent conflict with long polling
     await application.bot.delete_webhook(drop_pending_updates=True)
 
-    await application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Run polling in a loop that catches conflict errors and retries.
+    while True:
+        try:
+            await application.run_polling(allowed_updates=Update.ALL_TYPES)
+        except Conflict as e:
+            print(f"Conflict error: {e}. Likely another instance is running. Retrying in 10 seconds.")
+            await asyncio.sleep(10)
+        except Exception as e:
+            print(f"Unexpected error: {e}. Retrying in 10 seconds.")
+            await asyncio.sleep(10)
 
 async def keep_alive(health_url: str, interval: int = 600):
     """
