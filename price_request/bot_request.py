@@ -1,24 +1,27 @@
 import os
+import asyncio
 import aiohttp
-from bs4 import BeautifulSoup
-from flask import Flask
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from telegram.error import Conflict
+from telegram.error import TelegramError
 from datetime import datetime
-import threading
-import asyncio
+from bs4 import BeautifulSoup
 import nest_asyncio
+import threading
 
 # Allow nested event loops (required in some environments)
 nest_asyncio.apply()
 
-# Ensure BOT_TOKEN is provided
+# Retrieve environment variables
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g., "https://your-app.onrender.com/webhook"
 if not BOT_TOKEN:
     raise ValueError("Missing TELEGRAM_BOT_TOKEN environment variable!")
+if not WEBHOOK_URL:
+    raise ValueError("Missing WEBHOOK_URL environment variable!")
 
-# Use NOW from your util if available; otherwise, fallback to datetime.
+# Use NOW from your util if available; otherwise, fallback to current datetime.
 try:
     from util.utils import NOW
 except ImportError:
@@ -31,13 +34,23 @@ app = Flask(__name__)
 def health_check():
     return "Bot is running!", 200
 
+# Webhook endpoint for Telegram updates
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json(force=True)
+    if data:
+        update = Update.de_json(data, app.bot)
+        # Process the update asynchronously
+        asyncio.create_task(app.application.process_update(update))
+    return "ok", 200
+
 def escape_md(text):
-    """Escape special characters for MarkdownV2"""
+    """Escape special characters for MarkdownV2."""
     escape_chars = "_*[]()~`>#+-=|{}.!"
     return "".join(f"\\{char}" if char in escape_chars else char for char in text)
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Fetch and send gold price"""
+    """Fetch and send gold price."""
     try:
         URL = "https://webgia.com/gia-vang/doji/"
         async with aiohttp.ClientSession() as session:
@@ -72,71 +85,41 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         await update.message.reply_text(message, parse_mode="MarkdownV2")
-
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}")
 
-async def start_bot():
-    """Start the Telegram bot with retry on conflict errors."""
+async def main():
+    """Set up and run the Telegram bot in webhook mode."""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
-    print("Telegram bot is running...")
 
-    # Clear any existing webhook to prevent conflict with long polling
-    await application.bot.delete_webhook(drop_pending_updates=True)
+    # Save bot and application in the Flask app for use in the webhook endpoint
+    app.application = application
+    app.bot = application.bot
 
-    # Run polling in a loop that catches conflict errors and retries.
+    # Remove any existing webhook, then set the new one
+    try:
+        await app.bot.delete_webhook(drop_pending_updates=True)
+        await app.bot.set_webhook(WEBHOOK_URL)
+        print(f"Webhook set to: {WEBHOOK_URL}")
+    except TelegramError as te:
+        print(f"Error setting webhook: {te}")
+
+    print("Telegram bot is running in webhook mode.")
+
+    # Keep the async loop alive indefinitely.
     while True:
-        try:
-            await application.run_polling(allowed_updates=Update.ALL_TYPES)
-        except Conflict as e:
-            print(f"Conflict error: {e}. Likely another instance is running. Retrying in 10 seconds.")
-            await asyncio.sleep(10)
-        except Exception as e:
-            print(f"Unexpected error: {e}. Retrying in 10 seconds.")
-            await asyncio.sleep(10)
+        await asyncio.sleep(3600)
 
-async def keep_alive(health_url: str, interval: int = 600):
-    """
-    Periodically pings the health-check endpoint to keep the app awake.
-    :param health_url: URL of the health-check endpoint.
-    :param interval: Interval between pings in seconds (default 600 seconds = 10 minutes).
-    """
-    while True:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(health_url) as response:
-                    print(f"Keep-alive ping status: {response.status}")
-        except Exception as e:
-            print(f"Keep-alive error: {e}")
-        await asyncio.sleep(interval)
-
-def run_app():
-    """Run Flask and Telegram bot concurrently."""
-    # Determine the port (Render sets PORT, default to 5000)
+def run_flask():
+    """Run Flask server; Render supplies the PORT environment variable."""
     flask_port = int(os.getenv("PORT", 5000))
-    
-    # Start Flask server in its own thread for health checks
-    flask_thread = threading.Thread(
-        target=app.run,
-        kwargs={
-            'host': '0.0.0.0',
-            'port': flask_port,
-            'use_reloader': False,
-            'threaded': True
-        },
-        daemon=True
-    )
-    flask_thread.start()
-
-    # Construct the local health-check URL
-    health_url = f"http://127.0.0.1:{flask_port}/"
-
-    # Get the current event loop, schedule both the Telegram bot and keep-alive tasks
-    loop = asyncio.get_event_loop()
-    loop.create_task(start_bot())
-    loop.create_task(keep_alive(health_url))
-    loop.run_forever()
+    app.run(host="0.0.0.0", port=flask_port, use_reloader=False)
 
 if __name__ == "__main__":
-    run_app()
+    # Start Flask in a separate thread so it can serve health-check and webhook endpoints.
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
+
+    # Run the asynchronous main() in the main thread.
+    asyncio.run(main())
