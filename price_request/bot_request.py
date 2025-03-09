@@ -17,8 +17,8 @@ def health_check():
 
 def start_flask_app():
     """Start the Flask app on the Render-assigned PORT."""
-    port = int(os.getenv("PORT", 5000))  # Use Render PORT, default to 5000
-    app.run(host="0.0.0.0", port=port, threaded=True)  # Allow multiple connections
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, use_reloader=False)  # Disable Flask's reloader
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
@@ -70,34 +70,20 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Error: {str(e)}")
 
 async def main():
-    """Start the Telegram bot without closing the event loop."""
+    """Start the Telegram bot"""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
 
     print("Bot is running...")
-    
-    # Run polling without closing the event loop
     await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
+    # Start Flask in a separate thread
+    flask_thread = threading.Thread(target=start_flask_app, daemon=True)
+    flask_thread.start()
+
+    # Start the Telegram bot in the main thread
     try:
-        # Start Flask in a separate thread
-        flask_thread = threading.Thread(target=start_flask_app, daemon=True)
-        flask_thread.start()
-
-        # Use existing event loop instead of asyncio.run()
-        loop = asyncio.get_running_loop()
-
-        # Schedule `main()` as a non-blocking task
-        loop.create_task(main())
-
-        # Keep the event loop running
-        loop.run_forever()
-
+        asyncio.run(main())
     except KeyboardInterrupt:
-        print("Bot stopped by user.")
-    except RuntimeError:
-        # If `get_running_loop()` fails, fallback to creating a new event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(main())
+        print("Bot stopped by user")
