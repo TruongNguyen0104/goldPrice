@@ -1,5 +1,3 @@
-import asyncio
-import threading
 import os
 import aiohttp
 from bs4 import BeautifulSoup
@@ -14,11 +12,6 @@ app = Flask(__name__)
 @app.route("/")
 def health_check():
     return "Bot is running!", 200
-
-def start_flask_app():
-    """Start Flask in production-ready configuration"""
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, use_reloader=False, threaded=False)
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
@@ -65,19 +58,34 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}")
 
-async def telegram_bot():
-    """Start Telegram bot polling"""
+async def start_bot():
+    """Start the Telegram bot"""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
+    
+    print("Bot is running...")
     await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-def run_bot():
-    """Wrapper for async bot execution"""
-    asyncio.run(telegram_bot())
+def run_app():
+    """Run both Flask and Telegram bot without additional libraries"""
+    import threading
+    import asyncio
+
+    # Start Flask in a separate thread
+    flask_thread = threading.Thread(
+        target=app.run,
+        kwargs={
+            'host': '0.0.0.0',
+            'port': int(os.getenv("PORT", 5000)),
+            'use_reloader': False,
+            'threaded': True
+        },
+        daemon=True
+    )
+    flask_thread.start()
+
+    # Start Telegram bot in main thread
+    asyncio.run(start_bot())
 
 if __name__ == "__main__":
-    # Start Telegram bot in a daemon thread
-    threading.Thread(target=run_bot, daemon=True).start()
-    
-    # Start Flask in main thread (blocking call)
-    start_flask_app()
+    run_app()
