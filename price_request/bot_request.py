@@ -1,7 +1,6 @@
 import asyncio
 import threading
 import os
-import nest_asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 from flask import Flask
@@ -19,7 +18,7 @@ def health_check():
 def start_flask_app():
     """Start the Flask app on the Render-assigned PORT."""
     port = int(os.getenv("PORT", 5000))  # Use Render PORT, default to 5000
-    app.run(host="0.0.0.0", port=port, threaded=False)  # Disable threading to reduce memory usage
+    app.run(host="0.0.0.0", port=port, threaded=True)  # Allow multiple connections
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
@@ -38,7 +37,7 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text("Price not found. Website returned an error.")
                     return
                 page_content = await response.text()
-        
+
         soup = BeautifulSoup(page_content, "html.parser")
         row = soup.find("td", string="Nhẫn tròn 999 Hưng Thịnh Vượng")
 
@@ -71,27 +70,25 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Error: {str(e)}")
 
 async def main():
-    """Start the Telegram bot."""
+    """Start the Telegram bot without closing the event loop."""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
-    
+
     print("Bot is running...")
+    
+    # Run polling in a non-blocking way
     await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     try:
-        # Patch asyncio to prevent "RuntimeError: This event loop is already running"
-        nest_asyncio.apply()
-
         # Start Flask in a separate thread
-        flask_thread = threading.Thread(target=start_flask_app)
-        flask_thread.daemon = True
+        flask_thread = threading.Thread(target=start_flask_app, daemon=True)
         flask_thread.start()
 
-        # Create a new event loop to avoid conflicts with Render's existing loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(main())
+        # Use existing event loop instead of asyncio.run()
+        loop = asyncio.get_event_loop()
+        loop.create_task(main())  # Schedules `main()` without blocking
+        loop.run_forever()  # Keeps the loop running
 
     except KeyboardInterrupt:
         print("Bot stopped by user.")
