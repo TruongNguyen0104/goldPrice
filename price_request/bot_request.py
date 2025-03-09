@@ -76,8 +76,8 @@ async def start_bot():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
     print("Telegram bot is running...")
-    # This will run until the bot is stopped
-    await application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Disable signal handling since this is running in a non-main thread.
+    await application.run_polling(allowed_updates=Update.ALL_TYPES, handle_signals=False)
 
 def run_telegram_bot():
     """Run Telegram bot in its own event loop."""
