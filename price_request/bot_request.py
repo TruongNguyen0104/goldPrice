@@ -4,7 +4,20 @@ from bs4 import BeautifulSoup
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from util.utils import NOW
+from datetime import datetime
+import threading
+import asyncio
+
+# Ensure BOT_TOKEN is provided
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("Missing TELEGRAM_BOT_TOKEN environment variable!")
+
+# Use NOW from your util if available; otherwise, fallback to datetime.
+try:
+    from util.utils import NOW
+except ImportError:
+    NOW = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -12,8 +25,6 @@ app = Flask(__name__)
 @app.route("/")
 def health_check():
     return "Bot is running!", 200
-
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 def escape_md(text):
     """Escape special characters for MarkdownV2"""
@@ -32,14 +43,16 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 page_content = await response.text()
 
         soup = BeautifulSoup(page_content, "html.parser")
-        row = soup.find("td", string="Nhẫn tròn 999 Hưng Thịnh Vượng") or None
-
-        if not row:
+        row_td = soup.find("td", string="Nhẫn tròn 999 Hưng Thịnh Vượng")
+        if not row_td:
             await update.message.reply_text("Gold price information not found.")
             return
 
-        row = row.find_parent("tr")
+        row = row_td.find_parent("tr")
         tds = row.find_all("td")
+        if len(tds) < 2:
+            await update.message.reply_text("Gold price data incomplete.")
+            return
 
         hcm_price = {
             "Mua vào": escape_md(tds[-2].get_text(strip=True)),
@@ -62,21 +75,25 @@ async def start_bot():
     """Start the Telegram bot"""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
-    
-    print("Bot is running...")
+    print("Telegram bot is running...")
+    # This will run until the bot is stopped
     await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-def run_app():
-    """Run both Flask and Telegram bot without additional libraries"""
-    import threading
-    import asyncio
+def run_telegram_bot():
+    """Run Telegram bot in its own event loop."""
+    new_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(new_loop)
+    new_loop.run_until_complete(start_bot())
 
+def run_app():
+    """Run Flask and Telegram bot concurrently."""
     # Start Flask in a separate thread
+    flask_port = int(os.getenv("PORT", 5000))
     flask_thread = threading.Thread(
         target=app.run,
         kwargs={
             'host': '0.0.0.0',
-            'port': int(os.getenv("PORT", 5000)),
+            'port': flask_port,
             'use_reloader': False,
             'threaded': True
         },
@@ -84,8 +101,13 @@ def run_app():
     )
     flask_thread.start()
 
-    # Start Telegram bot in main thread
-    asyncio.run(start_bot())
+    # Start the Telegram bot in its own thread with a separate event loop
+    bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
+    bot_thread.start()
+
+    # Keep the main thread alive
+    flask_thread.join()
+    bot_thread.join()
 
 if __name__ == "__main__":
     run_app()
