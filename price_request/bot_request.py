@@ -7,10 +7,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from datetime import datetime
 import threading
 import asyncio
-import nest_asyncio
-
-# Allow nested event loops (required in some environments)
-nest_asyncio.apply()
+import logging
 
 # Ensure BOT_TOKEN is provided
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -25,6 +22,10 @@ except ImportError:
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @app.route("/")
 def health_check():
@@ -73,35 +74,42 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(message, parse_mode="MarkdownV2")
 
     except Exception as e:
+        logger.error(f"Error in price command: {e}")
         await update.message.reply_text(f"Error: {str(e)}")
 
 async def start_bot():
     """Start the Telegram bot"""
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("price", price))
-    print("Telegram bot is running...")
-    await application.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        application = Application.builder().token(BOT_TOKEN).build()
+        application.add_handler(CommandHandler("price", price))
+        logger.info("Telegram bot is running...")
+        await application.run_polling(allowed_updates=Update.ALL_TYPES)
+    except Exception as e:
+        logger.error(f"Telegram bot failed: {e}")
+        # Shutdown the application if the bot fails
+        os._exit(1)
+
+def run_flask():
+    """Run Flask in a separate thread."""
+    flask_port = int(os.getenv("PORT", 5000))
+    logger.info(f"Starting Flask server on port {flask_port}...")
+    app.run(
+        host='0.0.0.0',
+        port=flask_port,
+        use_reloader=False,
+        threaded=True
+    )
 
 def run_app():
     """Run Flask and Telegram bot concurrently."""
     # Start Flask in a separate thread
-    flask_port = int(os.getenv("PORT", 5000))
-    flask_thread = threading.Thread(
-        target=app.run,
-        kwargs={
-            'host': '0.0.0.0',
-            'port': flask_port,
-            'use_reloader': False,
-            'threaded': True
-        },
-        daemon=True
-    )
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
 
-    # Get the current event loop, schedule the Telegram bot, and run forever.
-    loop = asyncio.get_event_loop()
-    loop.create_task(start_bot())
-    loop.run_forever()
+    # Create a new event loop for the Telegram bot
+    bot_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(bot_loop)
+    bot_loop.run_until_complete(start_bot())
 
 if __name__ == "__main__":
     run_app()
