@@ -7,16 +7,18 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.error import Conflict
 import nest_asyncio
+from flask import Flask
+import threading
 
-# Allow nested event loops in environments that already have one running.
+# Allow nested event loops in some environments.
 nest_asyncio.apply()
 
-# Retrieve the bot token from environment variables.
+# Retrieve the bot token.
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("Missing TELEGRAM_BOT_TOKEN environment variable!")
 
-# Optionally, import a custom NOW; otherwise, use the current datetime.
+# Optionally, import custom NOW; otherwise, use current time.
 try:
     from util.utils import NOW
 except ImportError:
@@ -37,16 +39,19 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text("Price not found. Website error.")
                     return
                 page_content = await response.text()
+
         soup = BeautifulSoup(page_content, "html.parser")
         row_td = soup.find("td", string="Nhẫn tròn 999 Hưng Thịnh Vượng")
         if not row_td:
             await update.message.reply_text("Gold price information not found.")
             return
+
         row = row_td.find_parent("tr")
         tds = row.find_all("td")
         if len(tds) < 2:
             await update.message.reply_text("Gold price data incomplete.")
             return
+
         hcm_price = {
             "Mua vào": escape_md(tds[-2].get_text(strip=True)),
             "Bán ra": escape_md(tds[-1].get_text(strip=True)),
@@ -65,11 +70,13 @@ async def run_polling():
     """Run the Telegram bot using long polling with retry logic."""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("price", price))
+    
     # Delete any existing webhook to avoid conflicts.
     try:
         await application.bot.delete_webhook(drop_pending_updates=True)
     except Exception as e:
         print("Error deleting webhook:", e)
+    
     while True:
         try:
             print("Starting long polling...")
@@ -80,7 +87,23 @@ async def run_polling():
             print(f"Unexpected error: {e}. Retrying in 10 seconds...")
         await asyncio.sleep(10)
 
+def run_flask():
+    """Run a minimal Flask server to respond to uptime monitor pings."""
+    app = Flask(__name__)
+    
+    @app.route("/")
+    def health_check():
+        return "Bot is running!", 200
+
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, use_reloader=False)
+
 def main():
+    # Start the minimal Flask server in a separate thread.
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    
+    # Run the Telegram bot polling in the main async event loop.
     asyncio.run(run_polling())
 
 if __name__ == "__main__":
