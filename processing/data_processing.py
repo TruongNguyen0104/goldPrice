@@ -26,8 +26,6 @@ def main():
     OUTPUT_PATH = "../data/processed_gold_price.csv"
     data = load_data(INPUT_PATH)
     data = clean_data(data)
-
-
     data = process_data(data)
     save_data(data, OUTPUT_PATH)
 
