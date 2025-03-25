@@ -35,6 +35,6 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add gold_price.json
+          git add ./data/doji_price.json
           git commit -m "Auto-update gold price JSON" || echo "No changes to commit"
           git push
