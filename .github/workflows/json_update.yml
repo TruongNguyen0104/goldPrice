@@ -1,0 +1,40 @@
+name: Update Gold Price JSON
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"  # Runs every 5 minutes (UTC)
+  workflow_dispatch:
+
+jobs:
+  update-json:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+      
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
+
+      - name: Parse gold price and update JSON
+        id: parse
+        run: |
+          python ./price_request/update_price.py > /price_request/doji_price.json
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add gold_price.json
+          git commit -m "Auto-update gold price JSON" || echo "No changes to commit"
+          git push
