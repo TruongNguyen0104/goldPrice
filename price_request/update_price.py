@@ -29,7 +29,7 @@ def parse_gold_price():
     ban_ra = tds[-1].get_text(strip=True)
     
     data = {
-        "updated": datetime.utcnow().replace(tzinfo=tz.UTC).astimezone(tz.tzlocal())
+        "updated": datetime.utcnow().replace(tzinfo=tz.UTC).astimezone(tz.gettz("Asia/Bangkok")) \
                     .strftime("%Y-%m-%d %H:%M:%S UTC+7"),
         "mua_vao": mua_vao,
         "ban_ra": ban_ra
