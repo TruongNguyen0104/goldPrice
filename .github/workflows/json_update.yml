@@ -29,7 +29,7 @@ jobs:
       - name: Parse gold price and update JSON
         id: parse
         run: |
-          python ./price_request/update_price.py > /price_request/doji_price.json
+          python ./price_request/update_price.py > ./data/doji_price.json
 
       - name: Commit and push changes
         run: |
