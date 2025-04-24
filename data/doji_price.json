@@ -1,5 +1,1 @@
-{
-  "updated": "2025-04-24 18:00:21 UTC+7",
-  "mua_vao": "11.350.000",
-  "ban_ra": "11.630.000"
-}
+Error: HTTPSConnectionPool(host='webgia.com', port=443): Max retries exceeded with url: /gia-vang/doji/ (Caused by SSLError(SSLZeroReturnError(6, 'TLS/SSL connection has been closed (EOF) (_ssl.c:1131)')))
