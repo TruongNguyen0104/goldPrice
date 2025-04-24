@@ -1,5 +1,1 @@
-{
-  "updated": "2025-04-24 11:23:47 UTC+7",
-  "mua_vao": "11.350.000",
-  "ban_ra": "11.630.000"
-}
+Error: HTTPSConnectionPool(host='webgia.com', port=443): Max retries exceeded with url: /gia-vang/doji/ (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7fa1b7477040>: Failed to establish a new connection: [Errno 110] Connection timed out'))
