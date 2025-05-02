@@ -1,5 +1,1 @@
-{
-  "updated": "2025-05-02 10:31:25 UTC+7",
-  "mua_vao": "11.400.000",
-  "ban_ra": "11.650.000"
-}
+Error: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
