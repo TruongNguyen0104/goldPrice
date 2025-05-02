@@ -1,1 +1,5 @@
-Error: HTTPSConnectionPool(host='webgia.com', port=443): Max retries exceeded with url: /gia-vang/doji/ (Caused by SSLError(SSLZeroReturnError(6, 'TLS/SSL connection has been closed (EOF) (_ssl.c:1131)')))
+{
+  "updated": "2025-05-02 18:37:48 UTC+7",
+  "mua_vao": "11.400.000",
+  "ban_ra": "11.650.000"
+}
