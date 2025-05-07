@@ -1,1 +1,5 @@
-Error: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+{
+  "updated": "2025-05-07 18:10:09 UTC+7",
+  "mua_vao": "11.550.000",
+  "ban_ra": "11.800.000"
+}
