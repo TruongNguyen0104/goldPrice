@@ -1,1 +1,5 @@
-Error: ("Connection broken: ConnectionResetError(104, 'Connection reset by peer')", ConnectionResetError(104, 'Connection reset by peer'))
+{
+  "updated": "2025-05-11 13:52:55 UTC+7",
+  "mua_vao": "11.450.000",
+  "ban_ra": "11.700.000"
+}
