@@ -1,1 +1,1 @@
-Error: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
+Error: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
