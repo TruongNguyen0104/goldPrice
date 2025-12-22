@@ -69,7 +69,6 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
-    token = "7466414955:AAHWl7kQR-HSj2YgnxdUCUN2mJ9nwej-mUk"
     if not token:
         raise ValueError("❌ Missing environment variable TELEGRAM_BOT_TOKEN!")
 
